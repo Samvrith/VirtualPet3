@@ -1,132 +1,110 @@
-// To create variables here.
-var Dog,Dog2,HappyDog,database,foodS,foodStock,form,milkImg,milk;
-var Milks = [];
-var AmorPm;
-
-var hour;
+var dog,dogimg,happydogimg;
+var foodS,foodStock;
+var fedTime,lastFed,currentTime;
+var feed,addFood;
+var foodObj;
+var gameState,readState;
 
 function preload()
 {
-  //To load Images.
-  Dog = loadImage("dogImg.png");
-  HappyDog = loadImage("dogImg1.png");
-  milkImg = loadImage("Milk.png");
-	
+  dogimg = loadImage("dogImg1.png");
+  happydogimg = loadImage("dogImg.png");
+
 }
 
 function setup() {
+  database=firebase.database();
+  createCanvas(1000,500);
+  
+  foodObj = new Food();
 
-//To create datatbase, canvas, sprites etc.
-
-  createCanvas(800, 700);
-
-  database = firebase.database();
-
-  foodStock = database.ref('Food');
+  foodStock=database.ref('Food');
   foodStock.on("value",readStock);
 
-  Dog2= createSprite(300,300,20,20);
-  Dog2.addImage(Dog);
-  Dog2.scale=0.2;
+  fedTime=database.ref('FeedTime');
+  fedTime.on("value",function(data){
+    lastFed=data.val();
+  });
 
-  form = new Form();
-}
-
-
-function draw() {  
-  //to give colour to background.
-   background(46, 139, 87);
+  //read game state from database
+  readState=database.ref('gameState');
+  readState.on("value",function(data){
+    gameState=data.val();
+  });
    
-   for (i = 20; i < 30 * foodS ; i=i+30)
-   {
-     Milks.push(createSprite(i,100,10,20));
-   }
+  dog=createSprite(700,300);
+  dog.addImage("dog", dogimg);
+  dog.scale=0.5;
+  
+  feed=createButton("Feed the dog");
+  feed.position(200,95);
+  feed.mousePressed(feedDog);
 
-   for (i = 0; i < foodS;i++)
-   {
-      Milks[i].addImage(milkImg);
-      Milks[i].scale =0.1;
+  addFood=createButton("ADD FOOD");
+  addFood.position(300,95);
+  addFood.mousePressed(addFoods);
+}
+
+function draw() {
+  currentTime=hour();
+  if(currentTime==(lastFed+1)){
+      update("Playing");
+      foodObj.garden();
+   }else if(currentTime==(lastFed+2)){
+    update("Sleeping");
+      foodObj.bedroom();
+   }else if(currentTime>(lastFed+2) && currentTime<=(lastFed+4)){
+    update("Bathing");
+      foodObj.washroom();
+   }else{
+    update("Hungry")
+    foodObj.display();
    }
    
-/*
-  for (i = 20; i < 30 * foodS ; i=i+30)
-  {
-    Milks.push(new Milk());
-  }
-
-  for (i = 0; i < foodS;i++)
-  {
-    Milks[i].display();
-  }
-  */
-   //To draw sprites
-  drawSprites();
-
-  GetTime();
-
-  form.display();
-
-  textSize(25);
-  fill("blue");
-  text("Last Feed: "+ hour + AmorPm,50,35);
- 
-// If condition to refill the food. 
-if(foodS < 1)
-{
-  database.ref('/').set(
-    {
-      Food:20
-    }
-  )
-}
-
-
-}
-
-function writeStock(varname)
-{
-  //For updating realtime database.
-  varname =varname -1;
-
-  database.ref('/').set(
-    {
-      Food:varname
-    }
+   if(gameState!="Hungry"){
+     feed.hide();
+     addFood.hide();
+     dog.remove();
+   }else{
+    feed.show();
+    addFood.show();
     
-  )
+   }
+ 
+  drawSprites();
+}
 
+//function to read food Stock
+function readStock(data){
+  foodS=data.val();
+  foodObj.updateFoodStock(foodS);
+}
+
+
+//function to update food stock and last fed time
+function feedDog(){
+  dog.addImage("dog", happydogimg);
+
+  foodObj.updateFoodStock(foodObj.getFoodStock()-1);
+  database.ref('/').update({
+    Food:foodObj.getFoodStock(),
+    FeedTime:hour(),
+    gameState:"Hungry"
+  })
+}
+
+//function to add food in stock
+function addFoods(){
   
+  foodS++;
+  database.ref('/').update({
+    Food:foodS
+  })
 }
 
-function readStock(data)
-{
-  //To get values from real time database.
-  foodS = data.val();
-}
-
-async function GetTime()
-{
-  var time = await fetch ("https://worldtimeapi.org/api/timezone/America/Chicago");
-  
-  var timeJSON = await time.json();
-
-var dt = timeJSON.datetime;
-
- hour = dt.slice(11,13);
-
-
-
-if(hour >=00 && hour <=12)
-{
-  AmorPm = "a.m.";
-}
-else
-{
-  AmorPm ="p.m.";
-}
-
-console.log(hour);
-
-
-
+//update gameState
+function update(state){
+  database.ref('/').update({
+    gameState:state
+  })
 }
